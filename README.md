@@ -414,7 +414,7 @@ It honours `prefers-reduced-motion` too, freezing on the first frame.
 
 ## What it's for
 
-A portfolio / learning piece. It is a decent vehicle for a few real ideas:
+It is a decent vehicle for a few real ideas:
 
 * Randomized algorithms whose expected cost is dominated by *success
   probability* rather than per-iteration work.
