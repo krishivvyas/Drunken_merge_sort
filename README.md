@@ -247,7 +247,9 @@ Both rescue variants recover this exact run; coffee does it in place:
 
 ```bash
 python drunken_merge_sort.py --values 5,3,8,1,9,6 --seed 1 --trace --coffee
-#         coffee [5, 8, 9] + [1, 3, 6] = [1, 3, 5, 6, 8, 9]
+
+# ...
+#   coffee [5, 8, 9] + [1, 3, 6] = [1, 3, 5, 6, 8, 9]
 # output: [1, 3, 5, 6, 8, 9]
 # status: Sorted in 2 stumbles.
 ```
@@ -436,5 +438,3 @@ Not for: sorting anything.
   empirical, not proved.
 * Benchmark timings are from one machine (CPython 3.12, Windows); the relative
   ordering is the meaningful part, not the absolute milliseconds.
-#   D r u n k e n _ m e r g e _ s o r t  
- 
