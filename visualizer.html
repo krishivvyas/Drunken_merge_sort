@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drunken Merge Sort — Animated Visualizer</title>
+<style>
+  :root{
+    --bg:#0b0e14;
+    --bg-2:#121826;
+    --panel:#151c2b;
+    --panel-2:#1b2334;
+    --line:#26314a;
+    --text:#e8eef8;
+    --muted:#8794ab;
+    --accent:#f2b134;
+    --accent-2:#e0679a;
+    --good:#4bd6a4;
+    --info:#5aa9e6;
+    --bad:#ef6f6f;
+    --move:620ms;
+    --ease:cubic-bezier(.34,.02,.24,1);
+    --ease-bounce:cubic-bezier(.34,1.56,.64,1);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1100px 620px at 18% -12%, #1c2540 0%, transparent 60%),
+      radial-gradient(900px 520px at 92% 0%, #2a1c33 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+    padding:26px 20px 60px;
+  }
+  .wrap{max-width:1120px;margin:0 auto}
+
+  /* ---------- header ---------- */
+  header{margin-bottom:20px}
+  h1{
+    margin:0;
+    font-size:clamp(26px,4.2vw,40px);
+    letter-spacing:-.02em;
+    font-weight:700;
+    background:linear-gradient(92deg,var(--accent) 0%,var(--accent-2) 60%,#9d7bf0 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .tag{color:var(--muted);margin:6px 0 0;max-width:74ch}
+  .tag b{color:#c3cede;font-weight:600}
+
+  /* ---------- panels ---------- */
+  .panel{
+    background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:0 18px 44px rgba(0,0,0,.34);
+  }
+
+  /* ---------- stats ---------- */
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 12px}
+  .stat{
+    flex:1 1 150px;padding:12px 16px;border-radius:14px;
+    background:rgba(255,255,255,.03);border:1px solid var(--line);
+  }
+  .stat .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.09em}
+  .stat .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+  .stat .v.small{font-size:16px;font-weight:600}
+  #statusVal.ok{color:var(--good)} #statusVal.bad{color:var(--bad)} #statusVal.run{color:var(--accent)}
+
+  /* ---------- sobriety meter ---------- */
+  .meter-row{display:flex;align-items:center;gap:12px;margin:4px 0 18px}
+  .meter-label{color:var(--muted);font-size:12px;white-space:nowrap}
+  .meter{
+    position:relative;flex:1;height:12px;border-radius:99px;overflow:hidden;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);
+  }
+  .meter-fill{
+    position:absolute;inset:0 auto 0 0;width:0%;
+    background:linear-gradient(90deg,var(--accent-2),var(--accent) 55%,var(--good));
+    border-radius:99px;
+    transition:width 700ms var(--ease);
+    box-shadow:0 0 18px rgba(242,177,52,.45);
+  }
+  .meter-pct{width:44px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}
+
+  /* ---------- stage ---------- */
+  .stage-wrap{position:relative;padding:18px 12px 14px;overflow:hidden}
+  .stage{position:relative;height:330px;width:100%}
+  .floor{
+    position:absolute;left:10px;right:10px;bottom:26px;height:1px;
+    background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent);
+  }
+
+  /* block chrome, sits behind the bars */
+  .box{
+    position:absolute;bottom:8px;height:288px;left:0;
+    transform:translateX(0);
+    transition:transform var(--move) var(--ease), width var(--move) var(--ease);
+    pointer-events:none;
+  }
+  .box-fill{
+    position:absolute;inset:0;border-radius:14px;
+    border:1px solid hsl(var(--h) 62% 52% / .55);
+    background:linear-gradient(180deg,hsl(var(--h) 62% 52% / .13),hsl(var(--h) 62% 52% / .04));
+    opacity:1;transform:scale(1);
+    transition:opacity 340ms ease, transform 340ms var(--ease),
+               box-shadow 340ms ease, border-color 340ms ease;
+  }
+  .box.enter .box-fill{opacity:0;transform:scale(.94)}
+  .box.leaving .box-fill{opacity:0;transform:scale(1.04)}
+  .box.solo .box-fill{border-style:dashed;border-color:hsl(var(--h) 40% 50% / .32);background:none}
+  .box.pair .box-fill{
+    border-color:hsl(var(--h) 80% 62% / .95);
+    box-shadow:0 0 0 1px hsl(var(--h) 80% 62% / .35), 0 0 26px hsl(var(--h) 80% 55% / .40);
+    animation:breathe 620ms ease-in-out infinite alternate;
+  }
+  .box.flash .box-fill{animation:flash 660ms ease-out}
+  @keyframes breathe{from{transform:scale(1)}to{transform:scale(1.018)}}
+  @keyframes flash{
+    0%{box-shadow:0 0 0 0 hsl(var(--h) 90% 70% / .85), 0 0 46px hsl(var(--h) 90% 62% / .7);transform:scale(1.045)}
+    55%{box-shadow:0 0 0 8px hsl(var(--h) 90% 70% / 0), 0 0 26px hsl(var(--h) 90% 62% / .25);transform:scale(.995)}
+    100%{box-shadow:0 0 0 0 hsl(var(--h) 90% 70% / 0), 0 0 0 hsl(var(--h) 90% 62% / 0);transform:scale(1)}
+  }
+
+  /* value bars */
+  .bar{
+    position:absolute;bottom:26px;left:0;
+    transform:translateX(0);
+    transition:transform var(--move) var(--ease), height 380ms var(--ease);
+    will-change:transform;
+  }
+  .bar-fill{
+    position:absolute;inset:0;border-radius:8px 8px 4px 4px;
+    background:hsl(var(--h) 66% 58%);
+    box-shadow:inset 0 1px 0 hsl(var(--h) 90% 78% / .55),
+               inset 0 -14px 22px hsl(var(--h) 70% 30% / .5),
+               0 6px 16px rgba(0,0,0,.32);
+    transition:background-color 520ms ease, box-shadow 520ms ease;
+    display:flex;align-items:flex-end;justify-content:center;
+  }
+  .bar-label{
+    font-size:11px;font-weight:700;color:hsl(var(--h) 75% 12%);
+    padding-bottom:4px;font-variant-numeric:tabular-nums;
+  }
+  .bar.stumbling .bar-fill{animation:wobble var(--move) ease-in-out}
+  .bar.snap .bar-fill{animation:snapin 560ms var(--ease-bounce)}
+  .bar.seeking .bar-fill{animation:seek 560ms ease-in-out infinite alternate}
+  @keyframes wobble{
+    0%{transform:rotate(0)}22%{transform:rotate(-2.4deg)}
+    52%{transform:rotate(2deg)}78%{transform:rotate(-1deg)}100%{transform:rotate(0)}
+  }
+  @keyframes snapin{
+    0%{transform:translateY(-16px) scaleY(1.16) scaleX(.84)}
+    45%{transform:translateY(0) scaleY(.86) scaleX(1.12)}
+    72%{transform:translateY(0) scaleY(1.06) scaleX(.97)}
+    100%{transform:translateY(0) scaleY(1) scaleX(1)}
+  }
+  @keyframes seek{
+    from{transform:translateY(0);filter:brightness(1)}
+    to{transform:translateY(-9px);filter:brightness(1.45)}
+  }
+
+  /* passed-out overlay */
+  .overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(8,11,18,.72);backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity 420ms ease;border-radius:16px;z-index:5;
+  }
+  .overlay.show{opacity:1;pointer-events:auto}
+  .overlay-card{
+    text-align:center;padding:26px 30px;border-radius:16px;
+    background:var(--panel);border:1px solid var(--line);
+    box-shadow:0 24px 60px rgba(0,0,0,.5);
+    transform:translateY(14px) scale(.96);transition:transform 460ms var(--ease-bounce);
+    max-width:480px;
+  }
+  .overlay.show .overlay-card{transform:translateY(0) scale(1)}
+  .overlay-emoji{font-size:44px;display:block;animation:sway 2.6s ease-in-out infinite}
+  @keyframes sway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+  .overlay h3{margin:8px 0 6px;font-size:21px}
+  .overlay p{margin:0 0 16px;color:var(--muted);font-size:13px}
+  .overlay .btn-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+  /* ---------- controls ---------- */
+  .controls{margin-top:16px;padding:16px;display:flex;gap:22px;flex-wrap:wrap;align-items:center}
+  .btn{
+    appearance:none;border:1px solid var(--line);border-radius:10px;
+    background:rgba(255,255,255,.05);color:var(--text);
+    padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;
+    transition:background 160ms ease,border-color 160ms ease,transform 120ms ease;
+  }
+  .btn:hover:not(:disabled){background:rgba(255,255,255,.1);border-color:#3a4763}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn:disabled{opacity:.38;cursor:not-allowed}
+  .btn.primary{
+    background:linear-gradient(180deg,var(--accent),#d99a1f);
+    border-color:#a8761a;color:#231a05;
+  }
+  .btn.primary:hover:not(:disabled){filter:brightness(1.08);background:linear-gradient(180deg,var(--accent),#d99a1f)}
+  .btn.ghost{background:transparent}
+  .ctl{display:flex;align-items:center;gap:9px}
+  .ctl label{color:var(--muted);font-size:12px;white-space:nowrap}
+  .val{font-variant-numeric:tabular-nums;color:var(--text);font-size:12px;min-width:34px}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;height:4px;border-radius:99px;
+    background:var(--line);width:118px;outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:2px solid #0b0e14;
+    box-shadow:0 0 0 1px var(--accent);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:13px;height:13px;border-radius:50%;background:var(--accent);
+    cursor:pointer;border:2px solid #0b0e14;
+  }
+  input[type=number]{
+    width:82px;background:rgba(255,255,255,.05);color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;
+    font-variant-numeric:tabular-nums;
+  }
+  .switch{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
+  .switch input{display:none}
+  .switch .track{
+    width:36px;height:20px;border-radius:99px;background:var(--line);
+    position:relative;transition:background 200ms ease;
+  }
+  .switch .track::after{
+    content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+    background:#8794ab;transition:transform 220ms var(--ease-bounce),background 200ms ease;
+  }
+  .switch input:checked + .track{background:rgba(242,177,52,.35)}
+  .switch input:checked + .track::after{transform:translateX(16px);background:var(--accent)}
+
+  /* ---------- event feed ---------- */
+  .feed-wrap{margin-top:16px;padding:0;overflow:hidden}
+  .feed-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 16px;border-bottom:1px solid var(--line);
+  }
+  .feed-head h2{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .feed{
+    height:212px;overflow-y:auto;padding:10px 16px 14px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;
+  }
+  .feed::-webkit-scrollbar{width:8px}
+  .feed::-webkit-scrollbar-thumb{background:#2c3852;border-radius:99px}
+  .line{
+    padding:5px 0 5px 11px;border-left:2px solid var(--line);color:#c2cde0;
+    animation:slidein 380ms var(--ease) both;
+  }
+  @keyframes slidein{
+    from{opacity:0;transform:translateY(9px) translateX(-6px)}
+    to{opacity:1;transform:none}
+  }
+  .line .n{color:var(--muted)}
+  .line.shuffle{border-left-color:#3d4a68;color:var(--muted)}
+  .line.fuse{border-left-color:var(--good);color:#d5f5e8}
+  .line.absorb{border-left-color:var(--info);color:#d6e9fa}
+  .line.coffee{border-left-color:var(--accent);color:#fbeacb}
+  .line.done{border-left-color:var(--accent);color:#ffe9b5;font-weight:700}
+  .line.fail{border-left-color:var(--bad);color:#ffd7d7}
+
+  footer{margin-top:22px;color:var(--muted);font-size:12.5px;max-width:84ch}
+  footer code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;font-size:12px}
+  footer b{color:#c3cede}
+
+  @media (max-width:640px){
+    .stage{height:270px}
+    .box{height:232px}
+    .controls{gap:14px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:1ms !important;transition-duration:60ms !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Drunken Merge Sort</h1>
+    <p class="tag">
+      Every element starts as its own <b>block</b>. Each step the blocks
+      <b>stumble</b> into a random new arrangement; any two neighbours that
+      happen to land in order <b>fuse permanently</b>, and a lone element that
+      falls inside a block's range gets <b>absorbed</b>. Repeat until one block
+      remains. It is a joke name for a real construction — and an honestly
+      terrible sorting algorithm.
+    </p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Stumbles</div><div class="v" id="stumbleVal">0</div></div>
+    <div class="stat"><div class="k">Blocks remaining</div><div class="v" id="blockVal">0</div></div>
+    <div class="stat"><div class="k">Fusions</div><div class="v" id="fuseVal">0</div></div>
+    <div class="stat"><div class="k">Status</div><div class="v small run" id="statusVal">Ready</div></div>
+  </div>
+
+  <div class="meter-row">
+    <span class="meter-label">🍺 Sobriety</span>
+    <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+    <span class="meter-pct" id="meterPct">0%</span>
+  </div>
+
+  <div class="panel stage-wrap">
+    <div class="stage" id="stage">
+      <div class="floor"></div>
+      <div id="boxes"></div>
+      <div id="bars"></div>
+    </div>
+    <div class="overlay" id="overlay">
+      <div class="overlay-card">
+        <span class="overlay-emoji" id="overlayEmoji">🥴</span>
+        <h3 id="overlayTitle">Drunken Merge Sort passed out</h3>
+        <p id="overlayText"></p>
+        <div class="btn-row">
+          <button class="btn primary" id="coffeeBtn">☕ Pour coffee</button>
+          <button class="btn ghost" id="anotherBtn">🎲 Another night</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel controls">
+    <div class="ctl">
+      <button class="btn primary" id="playBtn">▶ Play</button>
+      <button class="btn" id="stepBtn">⏭ Step</button>
+      <button class="btn ghost" id="resetBtn">↺ Reset</button>
+    </div>
+    <div class="ctl">
+      <label for="speed">Speed</label>
+      <input type="range" id="speed" min="0.3" max="3" step="0.1" value="1">
+      <span class="val" id="speedVal">1.0×</span>
+    </div>
+    <div class="ctl">
+      <label for="size">Array size</label>
+      <input type="range" id="size" min="4" max="14" step="1" value="8">
+      <span class="val" id="sizeVal">8</span>
+    </div>
+    <div class="ctl">
+      <label for="seed">Seed</label>
+      <input type="number" id="seed" value="849" min="0" step="1">
+      <button class="btn ghost" id="diceBtn" title="Random seed">🎲</button>
+    </div>
+    <label class="switch" title="When wedged, allow one interleave merge so the run can finish">
+      <input type="checkbox" id="coffeeToggle">
+      <span class="track"></span>
+      <span class="meter-label">☕ Coffee mode</span>
+    </label>
+  </div>
+
+  <div class="panel feed-wrap">
+    <div class="feed-head">
+      <h2>Event log</h2>
+      <button class="btn ghost" id="clearBtn" style="padding:4px 10px;font-size:11px">clear</button>
+    </div>
+    <div class="feed" id="feed"></div>
+  </div>
+
+  <footer>
+    <p><b>Why it usually passes out.</b> Fusions are permanent and greedy, so a
+    run can build two blocks whose ranges <i>nest</i> — say <code>[1,10]</code>
+    and <code>[4,6]</code>. Neither order satisfies max(A) ≤ min(B), and neither
+    is a lone element, so absorption cannot apply either. The run is
+    <b>wedged</b>: no future shuffle can ever help. Past n = 10 that is the
+    overwhelmingly likely ending. <b>Coffee mode</b> unsticks it by allowing one
+    interleave merge — which is exactly natural merge sort's merge step, i.e.
+    the sober algorithm hiding underneath this whole thing.</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   Drunken Merge Sort — the algorithm (a faithful port of drunken_merge_sort.py)
+   ===================================================================== */
+
+/** Deterministic, seedable PRNG so a seed reproduces a run exactly. */
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Fisher-Yates using our seeded RNG. Blocks move as whole units. */
+function shuffleBlocks(blocks, rng){
+  const out = blocks.slice();
+  for(let i = out.length - 1; i > 0; i--){
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+const lo  = b => b.elements[0];                       // block min
+const hi  = b => b.elements[b.elements.length - 1];   // block max
+const isSingleton = b => b.elements.length === 1;
+
+/** Index i of the first adjacent pair with max(blocks[i]) <= min(blocks[i+1]). */
+function findFusible(blocks){
+  for(let i = 0; i < blocks.length - 1; i++){
+    if(hi(blocks[i]) <= lo(blocks[i+1])) return i;
+  }
+  return -1;
+}
+
+/** [singletonIndex, blockIndex] for a legal absorption, or null. */
+function findAbsorption(blocks){
+  for(let i = 0; i < blocks.length; i++){
+    if(!isSingleton(blocks[i])) continue;
+    const v = lo(blocks[i]);
+    for(const j of [i-1, i+1]){
+      if(j < 0 || j >= blocks.length) continue;
+      const nb = blocks[j];
+      if(lo(nb) < v && v < hi(nb)) return [i, j];
+    }
+  }
+  return null;
+}
+
+/**
+ * True when no future shuffle could ever make progress: no ordering admits a
+ * fusion and no absorption is possible. Blocks only ever grow, so this state
+ * is permanent.
+ */
+function isWedged(blocks){
+  if(blocks.length <= 1) return false;
+  for(const a of blocks)
+    for(const b of blocks)
+      if(a !== b && hi(a) <= lo(b)) return false;
+  for(const s of blocks){
+    if(!isSingleton(s)) continue;
+    const v = lo(s);
+    for(const c of blocks)
+      if(c !== s && lo(c) < v && v < hi(c)) return false;
+  }
+  return true;
+}
+
+/* =====================================================================
+   Geometry / layout
+   ===================================================================== */
+
+const GEO = { barGap:4, blockPad:7, blockGap:16, minBarH:30, maxBarH:250 };
+
+const stageEl  = document.getElementById("stage");
+const boxesEl  = document.getElementById("boxes");
+const barsEl   = document.getElementById("bars");
+const feedEl   = document.getElementById("feed");
+const overlay  = document.getElementById("overlay");
+
+let barW = 30;      // recomputed per run so the worst case (n blocks) fits
+
+function computeBarWidth(n){
+  const avail = stageEl.clientWidth - 20;
+  const w = (avail - (n - 1) * GEO.blockGap) / n - 2 * GEO.blockPad;
+  return Math.max(14, Math.min(46, Math.floor(w)));
+}
+
+/**
+ * Positions for the current arrangement.
+ * `pullIndex` closes the gap after that block, so a fusing pair can visibly
+ * slide together before merging.
+ */
+function computeLayout(blocks, pullIndex){
+  const widths = blocks.map(b =>
+    2 * GEO.blockPad + b.elements.length * barW +
+    (b.elements.length - 1) * GEO.barGap);
+  const gaps = blocks.map((_, i) => (i === pullIndex ? 0 : GEO.blockGap));
+  let total = widths.reduce((a, b) => a + b, 0);
+  for(let i = 0; i < blocks.length - 1; i++) total += gaps[i];
+
+  let x = Math.max(10, (stageEl.clientWidth - total) / 2);
+  const out = [];
+  blocks.forEach((b, i) => {
+    const bars = b.elements.map((v, k) => ({
+      value: v,
+      x: x + GEO.blockPad + k * (barW + GEO.barGap)
+    }));
+    out.push({ block:b, x, w:widths[i], bars });
+    x += widths[i] + gaps[i];
+  });
+  return out;
+}
+
+/** Golden-angle hue per block id: fused blocks always get a fresh colour. */
+const hueFor = id => Math.round((id * 137.508 + 24) % 360);
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+
+const barNodes = new Map();   // value -> .bar element (created once per run)
+const boxNodes = new Map();   // block id -> .box element
+
+function buildBars(values){
+  barsEl.innerHTML = "";
+  barNodes.clear();
+  const maxV = Math.max(...values);
+  for(const v of values){
+    const node = document.createElement("div");
+    node.className = "bar";
+    node.style.width = barW + "px";
+    node.style.height =
+      Math.round(GEO.minBarH + (v / maxV) * (GEO.maxBarH - GEO.minBarH)) + "px";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    if(barW >= 22){
+      const label = document.createElement("span");
+      label.className = "bar-label";
+      label.textContent = v;
+      fill.appendChild(label);
+    }
+    node.appendChild(fill);
+    barsEl.appendChild(node);
+    barNodes.set(v, node);
+  }
+}
+
+/**
+ * Paint the arrangement. Nodes are reused and only their transforms/widths
+ * change, so every visual update is a CSS transition — never a teleport.
+ */
+function render(blocks, opts){
+  opts = opts || {};
+  const layout = computeLayout(blocks, opts.pullIndex);
+  const alive = new Set();
+
+  for(const item of layout){
+    const id = item.block.id;
+    alive.add(id);
+    let box = boxNodes.get(id);
+    if(!box){
+      box = document.createElement("div");
+      box.className = "box enter";
+      box.innerHTML = '<div class="box-fill"></div>';
+      boxesEl.appendChild(box);
+      boxNodes.set(id, box);
+      box.style.setProperty("--h", hueFor(id));
+      box.style.width = item.w + "px";
+      box.style.transform = `translateX(${item.x}px)`;
+      // Next frame: drop `.enter` so the new block fades/scales in place.
+      requestAnimationFrame(() => requestAnimationFrame(() =>
+        box.classList.remove("enter")));
+    } else {
+      box.style.width = item.w + "px";
+      box.style.transform = `translateX(${item.x}px)`;
+    }
+    box.classList.toggle("solo", item.block.elements.length === 1);
+    box.classList.toggle("pair", !!(opts.pair && opts.pair.includes(id)));
+    if(opts.flashId === id){
+      box.classList.remove("flash");
+      void box.offsetWidth;               // restart the keyframe
+      box.classList.add("flash");
+    }
+
+    for(const bar of item.bars){
+      const node = barNodes.get(bar.value);
+      node.style.transform = `translateX(${bar.x}px)`;
+      node.style.setProperty("--h", hueFor(id));
+    }
+  }
+
+  // Retire boxes whose block no longer exists (fade out, then remove).
+  for(const [id, node] of boxNodes){
+    if(alive.has(id)) continue;
+    node.classList.add("leaving");
+    boxNodes.delete(id);
+    setTimeout(() => node.remove(), 400);
+  }
+}
+
+/* =====================================================================
+   Animation engine
+   ===================================================================== */
+
+const state = {
+  blocks: [], values: [], rng: null, nextId: 0,
+  stumbles: 0, fusions: 0, n: 8, coffee: false,
+  playing: false, busy: false, finished: false,
+  gen: 0, speed: 1, maxStumbles: 300
+};
+
+class Abort extends Error {}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function wait(ms, tok){
+  await sleep(ms);
+  if(tok !== state.gen) throw new Abort();   // a reset happened mid-animation
+}
+
+/** Durations, all scaled by the speed slider. */
+function D(){
+  const s = state.speed;
+  return {
+    move:   Math.round(620 / s),
+    pair:   Math.round(360 / s),
+    merge:  Math.round(520 / s),
+    between:Math.round(430 / s)
+  };
+}
+function syncSpeedVars(){
+  stageEl.style.setProperty("--move", D().move + "ms");
+  document.documentElement.style.setProperty("--move", D().move + "ms");
+}
+
+/* ---------- UI helpers ---------- */
+
+function logLine(text, kind){
+  const el = document.createElement("div");
+  el.className = "line " + (kind || "");
+  el.innerHTML = text;
+  feedEl.appendChild(el);
+  while(feedEl.children.length > 220) feedEl.removeChild(feedEl.firstChild);
+  feedEl.scrollTop = feedEl.scrollHeight;
+}
+const fmt = b => "[" + b.elements.join(", ") + "]";
+
+function updateStats(){
+  document.getElementById("stumbleVal").textContent = state.stumbles;
+  document.getElementById("blockVal").textContent = state.blocks.length;
+  document.getElementById("fuseVal").textContent = state.fusions;
+  const pct = state.n > 1
+    ? Math.round((state.n - state.blocks.length) / (state.n - 1) * 100) : 100;
+  document.getElementById("meterFill").style.width = pct + "%";
+  document.getElementById("meterPct").textContent = pct + "%";
+}
+function setStatus(text, cls){
+  const el = document.getElementById("statusVal");
+  el.textContent = text;
+  el.className = "v small " + (cls || "run");
+}
+
+function showOverlay(title, text, emoji){
+  document.getElementById("overlayTitle").textContent = title;
+  document.getElementById("overlayText").textContent = text;
+  document.getElementById("overlayEmoji").textContent = emoji;
+  document.getElementById("coffeeBtn").style.display =
+    state.coffee ? "none" : "inline-block";
+  overlay.classList.add("show");
+}
+const hideOverlay = () => overlay.classList.remove("show");
+
+/* ---------- animated primitives ---------- */
+
+async function animateShuffle(tok){
+  state.stumbles++;
+  state.blocks = shuffleBlocks(state.blocks, state.rng);
+  render(state.blocks);
+  for(const node of barNodes.values()){
+    node.classList.remove("stumbling");
+    void node.offsetWidth;
+    node.classList.add("stumbling");
+  }
+  logLine(`<span class="n">#${state.stumbles}</span> stumbled into ` +
+          state.blocks.map(fmt).join(" "), "shuffle");
+  updateStats();
+  await wait(D().move + 70, tok);
+  for(const node of barNodes.values()) node.classList.remove("stumbling");
+}
+
+async function animateFuse(i, tok){
+  const a = state.blocks[i], b = state.blocks[i+1];
+
+  // 1. the pair notices each other
+  render(state.blocks, { pair:[a.id, b.id] });
+  await wait(D().pair, tok);
+
+  // 2. they slide together, closing the gap between them
+  render(state.blocks, { pair:[a.id, b.id], pullIndex:i });
+  await wait(Math.round(D().move * 0.55), tok);
+
+  // 3. fuse: concatenation is already sorted because max(a) <= min(b)
+  const merged = { id: state.nextId++, elements: a.elements.concat(b.elements) };
+  state.blocks.splice(i, 2, merged);
+  state.fusions++;
+  render(state.blocks, { flashId: merged.id });
+  logLine(`&nbsp;&nbsp;⚡ Block ${fmt(a)} fused with Block ${fmt(b)} → ` +
+          `<b>${fmt(merged)}</b>`, "fuse");
+  updateStats();
+  await wait(D().merge, tok);
+}
+
+async function animateAbsorb(hit, tok){
+  const [i, j] = hit;
+  const loner = state.blocks[i], target = state.blocks[j];
+  const value = lo(loner);
+  const before = fmt(target);
+
+  // 1. the lone element hovers, looking for its slot
+  const lonerBar = barNodes.get(value);
+  lonerBar.classList.add("seeking");
+  render(state.blocks, { pair:[target.id] });
+  await wait(D().pair, tok);
+  lonerBar.classList.remove("seeking");
+
+  // 2. slot it into the block's correct internal position
+  let pos = 0;
+  while(pos < target.elements.length && target.elements[pos] < value) pos++;
+  target.elements.splice(pos, 0, value);
+  state.blocks.splice(i, 1);
+
+  render(state.blocks, { flashId: target.id });
+  lonerBar.classList.remove("snap");
+  void lonerBar.offsetWidth;
+  lonerBar.classList.add("snap");
+  logLine(`&nbsp;&nbsp;🧲 Element <b>${value}</b> absorbed into Block ` +
+          `${before} at index ${pos} → <b>${fmt(target)}</b>`, "absorb");
+  updateStats();
+  await wait(D().merge, tok);
+  lonerBar.classList.remove("snap");
+}
+
+async function animateCoffee(tok){
+  const a = state.blocks[0], b = state.blocks[1];
+  render(state.blocks, { pair:[a.id, b.id], pullIndex:0 });
+  await wait(D().pair, tok);
+  const merged = {
+    id: state.nextId++,
+    elements: a.elements.concat(b.elements).sort((x, y) => x - y)
+  };
+  state.blocks.splice(0, 2, merged);
+  state.fusions++;
+  render(state.blocks, { flashId: merged.id });
+  logLine(`&nbsp;&nbsp;☕ Coffee: interleave-merged ${fmt(a)} + ${fmt(b)} → ` +
+          `<b>${fmt(merged)}</b>`, "coffee");
+  updateStats();
+  await wait(D().merge, tok);
+}
+
+/** Fuse and absorb to fixpoint, one animated event at a time. */
+async function settleAnimated(tok){
+  for(;;){
+    const i = findFusible(state.blocks);
+    if(i !== -1){ await animateFuse(i, tok); continue; }
+    const hit = findAbsorption(state.blocks);
+    if(hit){ await animateAbsorb(hit, tok); continue; }
+    break;
+  }
+}
+
+function finishSorted(){
+  state.finished = true;
+  state.playing = false;
+  setStatus("Sorted 🎉", "ok");
+  logLine(`✅ Sorted in ${state.stumbles} stumbles: ` +
+          `<b>${fmt(state.blocks[0])}</b>`, "done");
+  render(state.blocks, { flashId: state.blocks[0].id });
+  syncButtons();
+}
+
+/** One full step: stumble → settle → check for an ending. */
+async function stumbleOnce(tok){
+  if(state.finished) return;
+
+  if(isWedged(state.blocks)){
+    if(state.coffee){
+      await animateCoffee(tok);
+      await settleAnimated(tok);
+    } else {
+      state.finished = true;
+      state.playing = false;
+      setStatus("Wedged 🥴", "bad");
+      logLine(`🥴 Passed out after ${state.stumbles} stumbles — blocks ` +
+              state.blocks.map(fmt).join(" ") +
+              ` can never fuse in any arrangement.`, "fail");
+      showOverlay("Drunken Merge Sort passed out",
+        "The surviving blocks' ranges nest, so no shuffle can ever put them " +
+        "in fusible order and no lone element is left to absorb. This run is " +
+        "permanently stuck — not slow, stuck.", "🥴");
+      return;
+    }
+  } else if(state.stumbles >= state.maxStumbles){
+    state.finished = true;
+    state.playing = false;
+    setStatus("Passed out", "bad");
+    logLine(`🥴 Hit the ${state.maxStumbles}-stumble cap.`, "fail");
+    showOverlay("Drunken Merge Sort passed out",
+      `Hit the safety cap of ${state.maxStumbles} stumbles before sorting.`,
+      "😵");
+    return;
+  } else {
+    await animateShuffle(tok);
+    await settleAnimated(tok);
+  }
+
+  if(state.blocks.length === 1) finishSorted();
+}
+
+/* ---------- run control ---------- */
+
+function syncButtons(){
+  const play = document.getElementById("playBtn");
+  play.textContent = state.playing ? "⏸ Pause" : "▶ Play";
+  play.disabled = state.finished;
+  document.getElementById("stepBtn").disabled =
+    state.finished || state.busy || state.playing;
+}
+
+async function runOneStep(){
+  if(state.busy || state.finished) return;
+  const tok = state.gen;
+  state.busy = true;
+  syncButtons();
+  try { await stumbleOnce(tok); }
+  catch(e){ if(!(e instanceof Abort)) throw e; }
+  finally {
+    if(tok === state.gen){ state.busy = false; syncButtons(); }
+  }
+}
+
+/** Auto-advance: the next stumble starts only once this one has fully settled. */
+async function playLoop(){
+  const tok = state.gen;
+  state.busy = true;
+  syncButtons();
+  try{
+    while(state.playing && !state.finished && tok === state.gen){
+      await stumbleOnce(tok);
+      if(!state.playing || state.finished) break;
+      await wait(D().between, tok);
+    }
+  } catch(e){ if(!(e instanceof Abort)) throw e; }
+  finally {
+    if(tok === state.gen){
+      state.busy = false;
+      state.playing = false;
+      syncButtons();
+    }
+  }
+}
+
+/* ---------- setup / reset ---------- */
+
+/** n distinct random values, drawn with the seeded RNG. */
+function makeValues(n, rng){
+  const pool = [];
+  for(let v = 5; v <= 99; v++) pool.push(v);
+  for(let i = pool.length - 1; i > 0; i--){
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, n);
+}
+
+function reset(newSeed){
+  state.gen++;                       // invalidates any in-flight animation
+  state.playing = false;
+  state.busy = false;
+  state.finished = false;
+  state.stumbles = 0;
+  state.fusions = 0;
+
+  const seedInput = document.getElementById("seed");
+  if(newSeed !== undefined){ seedInput.value = newSeed; }
+  const seed = parseInt(seedInput.value, 10) || 0;
+  state.n = parseInt(document.getElementById("size").value, 10);
+  state.coffee = document.getElementById("coffeeToggle").checked;
+
+  const setupRng = mulberry32(seed * 2654435761 + 12345);
+  state.values = makeValues(state.n, setupRng);
+  state.rng = mulberry32(seed || 1);
+  state.nextId = state.n;
+  state.blocks = state.values.map((v, i) => ({ id:i, elements:[v] }));
+
+  hideOverlay();
+  boxesEl.innerHTML = "";
+  boxNodes.clear();
+  barW = computeBarWidth(state.n);
+  buildBars(state.values);
+  syncSpeedVars();
+  render(state.blocks);
+
+  setStatus("Ready", "run");
+  updateStats();
+  syncButtons();
+  logLine(`<span class="n">—</span> new night out: n=${state.n}, seed=${seed}, ` +
+          `array [${state.values.join(", ")}]`, "");
+}
+
+/* ---------- wiring ---------- */
+
+document.getElementById("playBtn").addEventListener("click", () => {
+  if(state.finished) return;
+  if(state.playing){
+    state.playing = false;          // finish the current step, then stop
+    setStatus("Paused", "run");
+    syncButtons();
+  } else {
+    state.playing = true;
+    setStatus("Stumbling…", "run");
+    syncButtons();
+    playLoop();
+  }
+});
+
+document.getElementById("stepBtn").addEventListener("click", () => {
+  if(state.playing) return;
+  setStatus("Stumbling…", "run");
+  runOneStep();
+});
+
+document.getElementById("resetBtn").addEventListener("click", () => reset());
+document.getElementById("anotherBtn").addEventListener("click",
+  () => reset(Math.floor(Math.random() * 99999)));
+document.getElementById("diceBtn").addEventListener("click",
+  () => reset(Math.floor(Math.random() * 99999)));
+
+document.getElementById("coffeeBtn").addEventListener("click", () => {
+  // Un-stick the current run in place, rather than starting over.
+  document.getElementById("coffeeToggle").checked = true;
+  state.coffee = true;
+  state.finished = false;
+  hideOverlay();
+  setStatus("Sobering up…", "run");
+  logLine("&nbsp;&nbsp;☕ Coffee mode enabled mid-run.", "coffee");
+  syncButtons();
+  runOneStep();
+});
+
+document.getElementById("coffeeToggle").addEventListener("change", e => {
+  state.coffee = e.target.checked;
+});
+
+document.getElementById("speed").addEventListener("input", e => {
+  state.speed = parseFloat(e.target.value);
+  document.getElementById("speedVal").textContent =
+    state.speed.toFixed(1) + "×";
+  syncSpeedVars();
+});
+
+document.getElementById("size").addEventListener("input", e => {
+  document.getElementById("sizeVal").textContent = e.target.value;
+  reset();
+});
+document.getElementById("seed").addEventListener("change", () => reset());
+document.getElementById("clearBtn").addEventListener("click",
+  () => { feedEl.innerHTML = ""; });
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    barW = computeBarWidth(state.n);
+    for(const [v, node] of barNodes) node.style.width = barW + "px";
+    render(state.blocks);
+  }, 140);
+});
+
+reset();
+</script>
+</body>
+</html>
